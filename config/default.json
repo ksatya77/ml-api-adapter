@@ -1,28 +1,10 @@
 {
   "PORT": 3000,
   "HOSTNAME": "http://ml-api-adapter",
-  "DFSP_URLS": {
-    "dfsp1": {
-      "transfers": {
-        "post": "http://localhost:4545/dfsp1/transfers",
-        "put": "http://localhost:4545/dfsp1/transfers/{{transferId}}",
-        "error": "http://localhost:4545/dfsp1/transfers/{{transferId}}/error"
-      }
-    },
-    "dfsp2": {
-      "transfers": {
-        "post": "http://localhost:4545/dfsp2/transfers",
-        "put": "http://localhost:4545/dfsp2/transfers/{{transferId}}",
-        "error": "http://localhost:4545/dfsp2/transfers/{{transferId}}/error"
-      }
-    },
-    "dfsp3": {
-      "transfers": {
-        "post": "http://localhost:4545/dfsp3/transfers",
-        "put": "http://localhost:4545/dfsp3/transfers/{{transferId}}",
-        "error": "http://localhost:4545/dfsp3/transfers/{{transferId}}/error"
-      }
-    }
+  "ENDPOINT_SOURCE_URL": "http://localhost:3001/participants/{{fsp}}/endpoints",
+  "ENDPOINT_CACHE_CONFIG": {
+    "expiresIn": 180000,
+    "generateTimeout": 30000
   },
   "AMOUNT": {
     "PRECISION": 10,
@@ -47,6 +29,10 @@
       "FULFIL_TOPIC_TEMPLATE": {
         "TEMPLATE": "topic-transfer-fulfil",
         "REGEX": "topic-transfer-fulfil"
+      },
+      "GET_TRANSFERS_TOPIC_TEMPLATE": {
+        "TEMPLATE": "topic-transfer-get",
+        "REGEX": "topic-transfer-get"
       }
     },
     "CONSUMER": {
@@ -116,6 +102,28 @@
             "rdkafkaConf": {
               "metadata.broker.list": "localhost:9092",
               "client.id": "ml-prod-transfer-fulfil",
+              "event_cb": true,
+              "compression.codec": "none",
+              "retry.backoff.ms": 100,
+              "message.send.max.retries": 2,
+              "socket.keepalive.enable": true,
+              "socket.max.fails": 0,
+              "queue.buffering.max.messages": 10000,
+              "queue.buffering.max.ms": 50,
+              "batch.num.messages": 100,
+              "api.version.request": true,
+              "dr_cb": true
+            }
+          }
+        },
+        "GET": {
+          "config": {
+            "options": {
+              "messageCharset": "utf8"
+            },
+            "rdkafkaConf": {
+              "metadata.broker.list": "localhost:9092",
+              "client.id": "ml-prod-transfer-get",
               "event_cb": true,
               "compression.codec": "none",
               "retry.backoff.ms": 100,

@@ -17,20 +17,21 @@
  optionally within square brackets <email>.
  * Gates Foundation
  - Name Surname <name.surname@gatesfoundation.com>
+
+ - Shashikant Hirugade <shashikant.hirugade@modusbox.com>
  --------------
  ******/
 
 'use strict'
 
-const src = '../../../../src'
 const Test = require('tapes')(require('tape'))
 const Sinon = require('sinon')
 const Logger = require('@mojaloop/central-services-shared').Logger
 const proxyquire = require('proxyquire')
-const Config = require(`${src}/lib/config.js`)
 
 Test('Callback Service tests', callbacksTest => {
   let sandbox, callback, request
+  const url = 'http://somehost:port/'
 
   callbacksTest.beforeEach(t => {
     sandbox = Sinon.createSandbox()
@@ -65,21 +66,33 @@ Test('Callback Service tests', callbacksTest => {
           from: 'dfsp1'
         }
       }
-      const url = Config.DFSP_URLS['dfsp2'].transfers
+
       const method = 'post'
+
       const headers = {
         'Content-Length': 1234,
         'Random': 'string'
       }
+
+      const expectedHeaders = {
+        'Random': 'string'
+      }
+
       const agentOptions = {
         rejectUnauthorized: false
       }
 
       const expected = 200
 
-      const body = JSON.stringify(message)
+      const requestOptions = {
+        url,
+        method,
+        headers: expectedHeaders,
+        body: JSON.stringify(message),
+        agentOptions
+      }
 
-      request.withArgs({ url, method, body, headers, agentOptions }).yields(null, { statusCode: 200 }, null)
+      request.withArgs(requestOptions).yields(null, { statusCode: 200 }, null)
 
       let result = await callback.sendCallback(url, method, headers, message)
       test.equal(result, expected)
@@ -104,10 +117,15 @@ Test('Callback Service tests', callbacksTest => {
           from: 'dfsp1'
         }
       }
-      const url = Config.DFSP_URLS['dfsp2'].transfers
+
       const method = 'post'
+
       const headers = {
         'Content-Length': 1234,
+        'Random': 'string'
+      }
+
+      const expectedHeaders = {
         'Random': 'string'
       }
 
@@ -115,10 +133,17 @@ Test('Callback Service tests', callbacksTest => {
         rejectUnauthorized: false
       }
 
-      const body = JSON.stringify(message)
+      const requestOptions = {
+        url,
+        method,
+        headers: expectedHeaders,
+        body: JSON.stringify(message),
+        agentOptions
+      }
+
       const error = new Error()
 
-      request.withArgs({ url, method, body, headers, agentOptions }).yields(error, null, null)
+      request.withArgs(requestOptions).yields(error, null, null)
 
       try {
         await callback.sendCallback(url, method, headers, message)

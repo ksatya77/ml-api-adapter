@@ -25,16 +25,20 @@
 const src = '../../../../src'
 const Test = require('tapes')(require('tape'))
 const Sinon = require('sinon')
-const Notification = require('../../../../src/handlers/notification')
-const Callback = require('../../../../src/handlers/notification/callbacks.js')
-const Mustache = require('mustache')
+const Notification = require(`${src}/handlers/notification`)
+const Callback = require(`${src}/handlers/notification/callbacks`)
 const Consumer = require('@mojaloop/central-services-shared').Kafka.Consumer
 const Logger = require('@mojaloop/central-services-shared').Logger
 const P = require('bluebird')
 const Config = require(`${src}/lib/config.js`)
+const Participant = require(`${src}/domain/participant`)
 
 Test('Notification Service tests', notificationTest => {
   let sandbox
+  const FSPIOP_CALLBACK_URL_TRANSFER_POST = 'FSPIOP_CALLBACK_URL_TRANSFER_POST'
+  const FSPIOP_CALLBACK_URL_TRANSFER_PUT = 'FSPIOP_CALLBACK_URL_TRANSFER_PUT'
+  const FSPIOP_CALLBACK_URL_TRANSFER_ERROR = 'FSPIOP_CALLBACK_URL_TRANSFER_ERROR'
+  const url = 'http://somehost:port/'
 
   notificationTest.beforeEach(t => {
     sandbox = Sinon.createSandbox()
@@ -44,6 +48,7 @@ Test('Notification Service tests', notificationTest => {
     // sandbox.stub(Consumer.prototype, 'consume').callsArgAsync(0)
     sandbox.stub(Consumer.prototype, 'consume').returns(P.resolve(true)) // .callsArgAsync(0)
     sandbox.stub(Consumer.prototype, 'commitMessageSync').returns(P.resolve(true))
+    sandbox.stub(Participant, 'getEndpoint').returns(P.resolve(url))
 
     sandbox.stub(Logger)
     sandbox.stub(Callback, 'sendCallback').returns(P.resolve(true))
@@ -78,7 +83,8 @@ Test('Notification Service tests', notificationTest => {
           id: 'b51ec534-ee48-4575-b6a9-ead2955b8098'
         }
       }
-      const url = Mustache.render(Config.DFSP_URLS['dfsp2'].transfers.post, { transferId: msg.value.id })
+
+      const url = await Participant.getEndpoint(msg.value.to, FSPIOP_CALLBACK_URL_TRANSFER_POST, msg.value.id)
       const method = 'post'
       const headers = {}
       const message = {}
@@ -115,7 +121,7 @@ Test('Notification Service tests', notificationTest => {
           id: 'b51ec534-ee48-4575-b6a9-ead2955b8098'
         }
       }
-      const url = Mustache.render(Config.DFSP_URLS['dfsp1'].transfers.error, { transferId: msg.value.id })
+      const url = await Participant.getEndpoint(msg.value.from, FSPIOP_CALLBACK_URL_TRANSFER_ERROR, msg.value.id)
       const method = 'put'
       const headers = {}
       const message = {}
@@ -152,13 +158,12 @@ Test('Notification Service tests', notificationTest => {
           id: 'b51ec534-ee48-4575-b6a9-ead2955b8098'
         }
       }
-      const url = Mustache.render(Config.DFSP_URLS['dfsp2'].transfers.post, { transferId: msg.value.id })
+      const url = await Participant.getEndpoint(msg.value.to, FSPIOP_CALLBACK_URL_TRANSFER_POST, msg.value.id)
       const method = 'post'
       const headers = {}
       const message = {}
 
-      const error = new Error()
-      Callback.sendCallback.withArgs(url, method, headers, message).returns(P.reject(error))
+      Callback.sendCallback.withArgs(url, method, headers, message).throws(new Error())
 
       try {
         await Notification.processMessage(msg)
@@ -192,13 +197,12 @@ Test('Notification Service tests', notificationTest => {
           id: 'b51ec534-ee48-4575-b6a9-ead2955b8098'
         }
       }
-      const url = Mustache.render(Config.DFSP_URLS['dfsp1'].transfers.error, { transferId: msg.value.id })
+      const url = await Participant.getEndpoint(msg.value.from, FSPIOP_CALLBACK_URL_TRANSFER_ERROR, msg.value.id)
       const method = 'put'
       const headers = {}
       const message = {}
 
-      const error = new Error()
-      Callback.sendCallback.withArgs(url, method, headers, message).returns(P.reject(error))
+      Callback.sendCallback.withArgs(url, method, headers, message).throws(new Error())
 
       try {
         await Notification.processMessage(msg)
@@ -231,18 +235,20 @@ Test('Notification Service tests', notificationTest => {
           id: 'b51ec534-ee48-4575-b6a9-ead2955b8098'
         }
       }
-      const urlPayer = Mustache.render(Config.DFSP_URLS['dfsp1'].transfers.put, { transferId: msg.value.id })
-      const urlPayee = Mustache.render(Config.DFSP_URLS['dfsp2'].transfers.put, { transferId: msg.value.id })
+      const urlPayer = await Participant.getEndpoint(msg.value.from, FSPIOP_CALLBACK_URL_TRANSFER_PUT, msg.value.id)
+      const urlPayee = await Participant.getEndpoint(msg.value.to, FSPIOP_CALLBACK_URL_TRANSFER_PUT, msg.value.id)
       const method = 'put'
-      const headers = {}
+      const headersFrom = { 'FSPIOP-Destination': msg.value.from }
+      const headersTo = { 'FSPIOP-Destination': msg.value.to }
       const message = {}
 
       const expected = 200
-      Callback.sendCallback.withArgs(urlPayer, method, headers, message)
-      Callback.sendCallback.withArgs(urlPayee, method, headers, message).returns(P.resolve(200))
+      Callback.sendCallback.withArgs(urlPayer, method, headersFrom, message, msg.value.id, msg.value.from).returns(P.resolve(200))
+      Callback.sendCallback.withArgs(urlPayee, method, headersTo, message, msg.value.id, msg.value.to).returns(P.resolve(200))
 
       let result = await Notification.processMessage(msg)
-      test.ok(Callback.sendCallback.calledWith(urlPayee, method, headers, message))
+      test.ok(Callback.sendCallback.calledWith(urlPayer, method, headersFrom, message, msg.value.id, msg.value.from))
+      test.ok(Callback.sendCallback.calledWith(urlPayee, method, headersTo, message, msg.value.id, msg.value.to))
       test.equal(result, expected)
       test.end()
     })
@@ -269,13 +275,12 @@ Test('Notification Service tests', notificationTest => {
           id: 'b51ec534-ee48-4575-b6a9-ead2955b8098'
         }
       }
-      const url = Mustache.render(Config.DFSP_URLS['dfsp1'].transfers.error, { transferId: msg.value.id })
+      const url = await Participant.getEndpoint(msg.value.from, FSPIOP_CALLBACK_URL_TRANSFER_ERROR, msg.value.id)
       const method = 'put'
       const headers = {}
       const message = {}
 
-      const error = new Error()
-      Callback.sendCallback.withArgs(url, method, headers, message).returns(P.reject(error))
+      Callback.sendCallback.withArgs(url, method, headers, message).throws(new Error())
 
       try {
         await Notification.processMessage(msg)
@@ -356,20 +361,21 @@ Test('Notification Service tests', notificationTest => {
         }
       }
 
-      const fromUrl = Mustache.render(Config.DFSP_URLS[msg.value.from].transfers.put, { transferId: msg.value.id })
-      const toUrl = Mustache.render(Config.DFSP_URLS[msg.value.to].transfers.put, { transferId: msg.value.id })
+      const fromUrl = await Participant.getEndpoint(msg.value.from, FSPIOP_CALLBACK_URL_TRANSFER_PUT, msg.value.id)
+      const toUrl = await Participant.getEndpoint(msg.value.to, FSPIOP_CALLBACK_URL_TRANSFER_PUT, msg.value.id)
       const method = 'put'
-      const headers = {}
+      const headersFrom = { 'FSPIOP-Destination': msg.value.from }
+      const headersTo = { 'FSPIOP-Destination': msg.value.to }
       const message = {}
 
       const expected = 200
 
-      Callback.sendCallback.withArgs(fromUrl, method, headers, message, msg.value.id, msg.value.from).returns(P.resolve(200))
-      Callback.sendCallback.withArgs(toUrl, method, headers, message, msg.value.id, msg.value.to).returns(P.resolve(200))
+      Callback.sendCallback.withArgs(fromUrl, method, headersFrom, message, msg.value.id, msg.value.from).returns(P.resolve(200))
+      Callback.sendCallback.withArgs(toUrl, method, headersTo, message, msg.value.id, msg.value.to).returns(P.resolve(200))
 
       let result = await Notification.processMessage(msg)
-      test.ok(Callback.sendCallback.calledWith(fromUrl, method, headers, message, msg.value.id, msg.value.from))
-      test.ok(Callback.sendCallback.calledWith(toUrl, method, headers, message, msg.value.id, msg.value.to))
+      test.ok(Callback.sendCallback.calledWith(fromUrl, method, headersFrom, message, msg.value.id, msg.value.from))
+      test.ok(Callback.sendCallback.calledWith(toUrl, method, headersTo, message, msg.value.id, msg.value.to))
       test.equal(result, expected)
       test.end()
     })
@@ -396,20 +402,21 @@ Test('Notification Service tests', notificationTest => {
           id: 'b51ec534-ee48-4575-b6a9-ead2955b8098'
         }
       }
-      const fromUrl = Mustache.render(Config.DFSP_URLS[msg.value.from].transfers.put, { transferId: msg.value.id })
-      const toUrl = Mustache.render(Config.DFSP_URLS[msg.value.to].transfers.put, { transferId: msg.value.id })
+      const fromUrl = await Participant.getEndpoint(msg.value.from, FSPIOP_CALLBACK_URL_TRANSFER_ERROR, msg.value.id)
+      const toUrl = await Participant.getEndpoint(msg.value.to, FSPIOP_CALLBACK_URL_TRANSFER_ERROR, msg.value.id)
       const method = 'put'
-      const headers = {}
+      const headersFrom = { 'FSPIOP-Destination': msg.value.from }
+      const headersTo = { 'FSPIOP-Destination': msg.value.to }
       const message = {}
 
       const expected = 200
 
-      Callback.sendCallback.withArgs(fromUrl, method, headers, message).returns(P.resolve(200))
-      Callback.sendCallback.withArgs(toUrl, method, headers, message).returns(P.resolve(200))
+      Callback.sendCallback.withArgs(fromUrl, method, headersFrom, message, msg.value.id, msg.value.from).returns(P.resolve(200))
+      Callback.sendCallback.withArgs(toUrl, method, headersTo, message).returns(P.resolve(200))
 
       let result = await Notification.processMessage(msg)
-      test.ok(Callback.sendCallback.calledWith(fromUrl, method, headers, message))
-      test.ok(Callback.sendCallback.calledWith(toUrl, method, headers, message))
+      test.ok(Callback.sendCallback.calledWith(fromUrl, method, headersFrom, message, msg.value.id, msg.value.from))
+      test.ok(Callback.sendCallback.calledWith(toUrl, method, headersTo, message, msg.value.id, msg.value.to))
       test.equal(result, expected)
       test.end()
     })
@@ -436,17 +443,17 @@ Test('Notification Service tests', notificationTest => {
           id: 'b51ec534-ee48-4575-b6a9-ead2955b8098'
         }
       }
-      const fromUrl = Mustache.render(Config.DFSP_URLS[msg.value.from].transfers.put, { transferId: msg.value.id })
+      const fromUrl = await Participant.getEndpoint(msg.value.from, FSPIOP_CALLBACK_URL_TRANSFER_ERROR, msg.value.id)
       const method = 'put'
       const headers = {}
       const message = {}
 
       const expected = 200
 
-      Callback.sendCallback.withArgs(fromUrl, method, headers, message).returns(P.resolve(200))
+      Callback.sendCallback.withArgs(fromUrl, method, headers, message, msg.value.id, msg.value.from).returns(P.resolve(200))
 
       let result = await Notification.processMessage(msg)
-      test.ok(Callback.sendCallback.calledWith(fromUrl, method, headers, message))
+      test.ok(Callback.sendCallback.calledWith(fromUrl, method, headers, message, msg.value.id, msg.value.from))
       test.equal(result, expected)
       test.end()
     })
@@ -473,7 +480,7 @@ Test('Notification Service tests', notificationTest => {
           id: 'b51ec534-ee48-4575-b6a9-ead2955b8098'
         }
       }
-      const fromUrl = Mustache.render(Config.DFSP_URLS[msg.value.from].transfers.put, { transferId: msg.value.id })
+      const fromUrl = await Participant.getEndpoint(msg.value.from, FSPIOP_CALLBACK_URL_TRANSFER_PUT, msg.value.id)
       const method = 'put'
       const headers = {}
       const message = {}
@@ -586,6 +593,36 @@ Test('Notification Service tests', notificationTest => {
             event: {
               type: 'prepare',
               action: 'prepare',
+              state: {
+                status: 'success',
+                code: 0
+              }
+            }
+          },
+          content: {
+            headers: {},
+            payload: {}
+          },
+          to: 'dfsp2',
+          from: 'dfsp1',
+          id: 'b51ec534-ee48-4575-b6a9-ead2955b8098'
+        }
+      }
+      test.ok(await Notification.startConsumer())
+      let result = await Notification.consumeMessage(null, [msg])
+      test.ok(result)
+      test.end()
+      Config.KAFKA_CONFIG.CONSUMER.NOTIFICATION.EVENT.config.rdkafkaConf['enable.auto.commit'] = false
+    })
+
+    consumeMessageTest.test('process the message with action = get', async test => {
+      Config.KAFKA_CONFIG.CONSUMER.NOTIFICATION.EVENT.config.rdkafkaConf['enable.auto.commit'] = false
+      const msg = {
+        value: {
+          metadata: {
+            event: {
+              type: 'prepare',
+              action: 'get',
               state: {
                 status: 'success',
                 code: 0

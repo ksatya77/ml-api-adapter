@@ -17,17 +17,43 @@
  optionally within square brackets <email>.
  * Gates Foundation
  - Name Surname <name.surname@gatesfoundation.com>
+
+ - Shashikant Hirugade <shashikant.hirugade@modusbox.com>
  --------------
  ******/
 
 'use strict'
 
-const Glob = require('glob')
+const Logger = require('@mojaloop/central-services-shared').Logger
+const Facade = require('../../models/participant/facade')
+/**
+ * @module src/domain/participant
+ */
 
-exports.plugin = {
-  name: 'api routes',
-  register: function (server, options) {
-    Glob.sync('**/routes.js', { cwd: __dirname, ignore: 'routes.js' })
-      .forEach(x => server.route(require('./' + x)))
+/**
+ * @function GetEndpoint
+ *
+ * @description It returns the endpoint for a given fsp and type from the cache if the cache is still valid, otherwise it will refresh the cache and return the value
+ *
+ * @param {string} fsp - the id of the fsp
+ * @param {string} enpointType - the type of the endpoint
+ * @param {string} transferId - optional transferId
+ *
+ * @returns {string} - Returns the endpoint, throws error if failure occurs
+ */
+const getEndpoint = async (fsp, enpointType, transferId = null) => {
+  Logger.debug(`domain::participant::getEndpoint::fsp - ${fsp}`)
+  Logger.debug(`domain::participant::getEndpoint::enpointType - ${enpointType}`)
+  Logger.debug(`domain::participant::getEndpoint::transferId - ${transferId}`)
+
+  try {
+    return Facade.getEndpoint(fsp, enpointType, transferId)
+  } catch (e) {
+    Logger.error(`participantEndpointCache::getEndpoint:: ERROR:'${e}'`)
+    throw e
   }
+}
+
+module.exports = {
+  getEndpoint
 }

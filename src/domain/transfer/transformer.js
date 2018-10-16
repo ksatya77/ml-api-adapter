@@ -17,31 +17,62 @@
  optionally within square brackets <email>.
  * Gates Foundation
  - Name Surname <name.surname@gatesfoundation.com>
+
+ * ModusBox
+ - Miguel de Barros <miguel.debarros@modusbox.com>
+
  --------------
  ******/
 
 'use strict'
 
-const Config = require('../lib/config')
-const Routes = require('./routes')
-const Setup = require('../shared/setup')
-
 /**
- * @module src/api/transfers
+ * @module src/domain/transfer/transformer
  */
 
 /**
- * @function Initialize
- * @async
- *
- * @description This will initialize the api service by calling Setup.initialize
- *
- * @returns {object} - Returns the server object on success, throws error if failure occurs
- */
+* @function transformHeaders
+*
+* @description This will transform the headers before sending to kafka
+*
+* @param {object} headers - the http header from the request
+*
+* @returns {object} Returns the normalized headers
+*/
 
-module.exports = Setup.initialize({
-  service: 'api',
-  port: Config.PORT,
-  modules: [Routes],
-  runHandlers: !Config.HANDLERS_DISABLED
-})
+const transformHeaders = (headers) => {
+  // Normalized headers
+  var normalizedHeaders = {}
+  for (var headerKey in headers) {
+    var headerValue = headers[headerKey]
+    switch (headerKey.toLowerCase()) {
+      case ('date'):
+        var tempDate = {}
+        if (typeof headerValue === 'object' && headerValue instanceof Date) {
+          tempDate = headerValue.toUTCString()
+        } else {
+          try {
+            tempDate = (new Date(headerValue)).toUTCString()
+            if (tempDate === 'Invalid Date') {
+              throw new Error('Invalid Date')
+            }
+          } catch (err) {
+            tempDate = headerValue
+          }
+        }
+        normalizedHeaders[headerKey] = tempDate
+        break
+      case ('content-length'):
+        // Do nothing here, do not map. This will be inserted correctly by the Hapi framework.
+        break
+      default:
+        normalizedHeaders[headerKey] = headerValue
+    }
+  }
+  return normalizedHeaders
+  // return headers
+}
+
+module.exports = {
+  transformHeaders
+}
