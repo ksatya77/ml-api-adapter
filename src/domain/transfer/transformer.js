@@ -84,18 +84,26 @@ const transformHeaders = (headers, config) => {
       case (ENUM.headers.GENERAL.CONTENT_LENGTH):
         // Do nothing here, do not map. This will be inserted correctly by the Hapi framework.
         break
+      case (ENUM.headers.FSPIOP.SIGNATURE):
+        // Check to see if we find a regex match the source header containing the switch name.
+        // If so we include the uri otherwise we do not include it.
+
+        if (config.sourceFsp.match(ENUM.headers.FSPIOP.SWITCH.regex) === null) {
+          normalizedHeaders[headerKey] = headerValue
+        }
+        break
       case (ENUM.headers.FSPIOP.URI):
         // Check to see if we find a regex match the source header containing the switch name.
-        // If so we include the uri otherwise we remove it.
+        // If so we include the uri otherwise we do not include it.
 
-        if (headers[normalizedKeys[ENUM.headers.FSPIOP.SOURCE]].match(ENUM.headers.FSPIOP.SWITCH.regex) === null) {
+        if (config.sourceFsp.match(ENUM.headers.FSPIOP.SWITCH.regex) === null) {
           normalizedHeaders[headerKey] = headerValue
         }
         break
       case (ENUM.headers.FSPIOP.HTTP_METHOD):
         // Check to see if we find a regex match the source header containing the switch name.
-        // If so we include the signature otherwise we remove it.
-        if (headers[normalizedKeys[ENUM.headers.FSPIOP.SOURCE]].match(ENUM.headers.FSPIOP.SWITCH.regex) === null) {
+        // If so we include the signature otherwise we do not include it.
+        if (config.sourceFsp.match(ENUM.headers.FSPIOP.SWITCH.regex) === null) {
           if (config.httpMethod.toLowerCase() === headerValue.toLowerCase()) {
             // HTTP Methods match, and thus no change is required
             normalizedHeaders[headerKey] = headerValue
@@ -116,11 +124,11 @@ const transformHeaders = (headers, config) => {
     }
   }
 
-  if (normalizedHeaders[normalizedKeys[ENUM.headers.FSPIOP.SOURCE]].match(ENUM.headers.FSPIOP.SWITCH.regex) !== null) {
-    // Check to see if we find a regex match the source header containing the switch name.
-    // If so we remove the signature added by default.
-    delete normalizedHeaders[ENUM.headers.FSPIOP.SIGNATURE]
-  }
+  // if (normalizedHeaders[normalizedKeys[ENUM.headers.FSPIOP.SOURCE]].match(ENUM.headers.FSPIOP.SWITCH.regex) !== null) {
+  //   // Check to see if we find a regex match the source header containing the switch name.
+  //   // If so we remove the signature added by default.
+  //   delete normalizedHeaders[ENUM.headers.FSPIOP.SIGNATURE]
+  // }
 
   if (config && config.httpMethod !== ENUM.methods.FSPIOP_CALLBACK_URL_TRANSFER_POST) {
     delete normalizedHeaders[ENUM.headers.GENERAL.ACCEPT]
