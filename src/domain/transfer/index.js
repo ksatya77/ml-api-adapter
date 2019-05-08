@@ -29,6 +29,7 @@ const Logger = require('@mojaloop/central-services-shared').Logger
 const Uuid = require('uuid4')
 const Utility = require('../../lib/utility')
 const Kafka = require('../../lib/kafka')
+const util = require('util')
 
 const TRANSFER = 'transfer'
 const PREPARE = 'prepare'
@@ -50,7 +51,7 @@ const GET = 'get'
 * @returns {boolean} Returns true on successful publishing of message to kafka, throws error on falires
 */
 const prepare = async (headers, message) => {
-  Logger.debug('domain::transfer::prepare::start(%s, %s)', headers, message)
+  Logger.debug(`domain::transfer::prepare::start(${util.inspect(headers)}, ${util.inspect(message)})`)
   try {
     const kafkaConfig = Utility.getKafkaConfig(Utility.ENUMS.PRODUCER, TRANSFER.toUpperCase(), PREPARE.toUpperCase())
     const messageProtocol = {
@@ -76,13 +77,13 @@ const prepare = async (headers, message) => {
       }
     }
     const topicConfig = Utility.createGeneralTopicConf(TRANSFER, PREPARE, message.transferId)
-    Logger.debug(`domain::transfer::prepare::messageProtocol - ${messageProtocol}`)
-    Logger.debug(`domain::transfer::prepare::topicConfig - ${topicConfig}`)
-    Logger.debug(`domain::transfer::prepare::kafkaConfig - ${kafkaConfig}`)
+    Logger.debug(`domain::transfer::prepare::messageProtocol - ${util.inspect(messageProtocol)}`)
+    Logger.debug(`domain::transfer::prepare::topicConfig - ${util.inspect(topicConfig)}`)
+    Logger.debug(`domain::transfer::prepare::kafkaConfig - ${util.inspect(kafkaConfig)}`)
     await Kafka.Producer.produceMessage(messageProtocol, topicConfig, kafkaConfig)
     return true
   } catch (err) {
-    Logger.error(`domain::transfer::prepare::Kafka error:: ERROR:'${err}'`)
+    Logger.error(`domain::transfer::prepare::Kafka error:: ERROR:'${util.inspect(err)}'`)
     throw err
   }
 }
@@ -99,7 +100,7 @@ const prepare = async (headers, message) => {
 * @returns {boolean} Returns true on successful publishing of message to kafka, throws error on falires
 */
 const fulfil = async (id, headers, message) => {
-  Logger.debug('domain::transfer::fulfil::start(%s, %s, %s)', id, headers, message)
+  Logger.debug(`domain::transfer::fulfil::start(${id}, ${util.inspect(headers)}, ${util.inspect(message)})`)
   try {
     const action = message.transferState === 'ABORTED' ? 'reject' : 'commit'
     const kafkaConfig = Utility.getKafkaConfig(Utility.ENUMS.PRODUCER, TRANSFER.toUpperCase(), FULFIL.toUpperCase())
@@ -129,9 +130,9 @@ const fulfil = async (id, headers, message) => {
     //   topicName: Utility.getFulfilTopicName() // `topic-${message.payerFsp}-transfer-prepare`
     // }
     const topicConfig = Utility.createGeneralTopicConf(TRANSFER, FULFIL, id)
-    Logger.debug(`domain::transfer::fulfil::messageProtocol - ${messageProtocol}`)
-    Logger.debug(`domain::transfer::fulfil::topicConfig - ${topicConfig}`)
-    Logger.debug(`domain::transfer::fulfil::kafkaConfig - ${kafkaConfig}`)
+    Logger.debug(`domain::transfer::fulfil::messageProtocol - ${util.inspect(messageProtocol)}`)
+    Logger.debug(`domain::transfer::fulfil::topicConfig - ${util.inspect(topicConfig)}`)
+    Logger.debug(`domain::transfer::fulfil::kafkaConfig - ${util.inspect(kafkaConfig)}`)
     await Kafka.Producer.produceMessage(messageProtocol, topicConfig, kafkaConfig)
     return true
   } catch (err) {
@@ -153,7 +154,7 @@ const fulfil = async (id, headers, message) => {
  * @returns {boolean} Returns true on successful publishing of message to kafka, throws error on falires
  */
 const getTransferById = async (id, headers) => {
-  Logger.info('domain::transfer::transferById::start(%s, %s, %s)', id, headers)
+  Logger.info(`domain::transfer::transferById::start(${id}, ${util.inspect(headers)})`)
   try {
     const kafkaConfig = Utility.getKafkaConfig(Utility.ENUMS.PRODUCER, TRANSFER.toUpperCase(), GET.toUpperCase())
     const messageProtocol = {
@@ -181,9 +182,9 @@ const getTransferById = async (id, headers) => {
     const topicConfig = {
       topicName: Utility.getTransferByIdTopicName()
     }
-    Logger.info(`domain::transfer::get::messageProtocol - ${messageProtocol}`)
-    Logger.info(`domain::transfer::get::topicConfig - ${topicConfig}`)
-    Logger.info(`domain::transfer::get::kafkaConfig - ${kafkaConfig}`)
+    Logger.info(`domain::transfer::get::messageProtocol - ${util.inspect(messageProtocol)}`)
+    Logger.info(`domain::transfer::get::topicConfig - ${util.inspect(topicConfig)}`)
+    Logger.info(`domain::transfer::get::kafkaConfig - ${util.inspect(kafkaConfig)}`)
     await Kafka.Producer.produceMessage(messageProtocol, topicConfig, kafkaConfig)
     return true
   } catch (err) {
@@ -204,7 +205,7 @@ const getTransferById = async (id, headers) => {
 * @returns {boolean} Returns true on successful publishing of message to kafka, throws error on falires
 */
 const transferError = async (id, headers, message) => {
-  Logger.debug('domain::transfer::abort::start(%s, %s, %s)', id, headers, message)
+  Logger.debug(`domain::transfer::abort::start(${id}, ${util.inspect(headers)}, ${util.inspect(message)})`)
   try {
     const kafkaConfig = Utility.getKafkaConfig(Utility.ENUMS.PRODUCER, TRANSFER.toUpperCase(), FULFIL.toUpperCase())
     const messageProtocol = {
@@ -230,9 +231,9 @@ const transferError = async (id, headers, message) => {
       }
     }
     const topicConfig = Utility.createGeneralTopicConf(TRANSFER, FULFIL, id)
-    Logger.debug(`domain::transfer::abort::messageProtocol - ${messageProtocol}`)
-    Logger.debug(`domain::transfer::abort::topicConfig - ${topicConfig}`)
-    Logger.debug(`domain::transfer::abort::kafkaConfig - ${kafkaConfig}`)
+    Logger.debug(`domain::transfer::abort::messageProtocol - ${util.inspect(messageProtocol)}`)
+    Logger.debug(`domain::transfer::abort::topicConfig - ${util.inspect(topicConfig)}`)
+    Logger.debug(`domain::transfer::abort::kafkaConfig - ${util.inspect(kafkaConfig)}`)
     await Kafka.Producer.produceMessage(messageProtocol, topicConfig, kafkaConfig)
     return true
   } catch (err) {
